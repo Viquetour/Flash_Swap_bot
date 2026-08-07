@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flash SolanaSwap — Lightning-fast Solana swaps, inside Telegram</title>
+<meta name="description" content="Flash SolanaSwap Bot routes every trade through Jupiter for the best price — with bank-grade wallet security, limit orders, TP/SL and SOL referral rewards, all inside Telegram.">
+<style>
+  :root{
+    --c1:#F44A2A; --c2:#FF7B28; --c3:#FFA93B; --c4:#C61C21;
+    --ink:#070B13; --panel:#101721; --line:#232C3A; --muted:#8B93A7; --sand:#D4BB87; --white:#F4F1EA;
+    --grad:linear-gradient(135deg,var(--c1),var(--c2) 50%,var(--c3));
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--ink);color:var(--white);font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{text-decoration:none;color:inherit}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 24px;position:relative;z-index:2}
+  .grad-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  /* ── Aurora background ─────────────────────────── */
+  .aurora{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .aurora i{position:absolute;border-radius:50%;filter:blur(120px);opacity:.30}
+  .aurora i:nth-child(1){width:640px;height:640px;background:var(--c1);top:-16%;left:-10%;animation:drift1 22s ease-in-out infinite alternate}
+  .aurora i:nth-child(2){width:560px;height:560px;background:var(--c4);top:24%;right:-14%;animation:drift2 26s ease-in-out infinite alternate}
+  .aurora i:nth-child(3){width:520px;height:520px;background:var(--c3);bottom:-18%;left:28%;animation:drift3 30s ease-in-out infinite alternate}
+  @keyframes drift1{to{transform:translate(140px,90px) scale(1.15)}}
+  @keyframes drift2{to{transform:translate(-120px,-80px) scale(1.2)}}
+  @keyframes drift3{to{transform:translate(100px,-110px) scale(.9)}}
+
+  /* ── Perspective grid floor ────────────────────── */
+  .grid-floor{position:absolute;left:-40%;right:-40%;bottom:-160px;height:460px;z-index:1;pointer-events:none;
+    background-image:linear-gradient(rgba(255,123,40,.13) 1.5px,transparent 1.5px),linear-gradient(90deg,rgba(244,74,42,.13) 1.5px,transparent 1.5px);
+    background-size:58px 58px;transform:perspective(760px) rotateX(63deg);
+    -webkit-mask-image:linear-gradient(to top,#000 25%,transparent 82%);mask-image:linear-gradient(to top,#000 25%,transparent 82%)}
+
+  /* ── Nav ───────────────────────────────────────── */
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(16px);background:rgba(7,11,19,.66);border-bottom:1px solid var(--line)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:19px;letter-spacing:-.3px}
+  .brand .lg{width:36px;height:36px}
+  .nav-links{display:flex;gap:30px;font-size:14.5px;color:var(--muted);font-weight:600}
+  .nav-links a:hover{color:var(--white)}
+  .btn{display:inline-flex;align-items:center;gap:9px;font-weight:700;border-radius:14px;padding:13px 24px;font-size:15px;transition:.2s transform,.2s box-shadow;border:0;cursor:pointer}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-grad{background:var(--grad);background-size:200% 200%;color:#1A0D08;box-shadow:0 8px 34px rgba(255,123,40,.30),0 4px 18px rgba(244,74,42,.22);animation:hue 6s ease infinite}
+  @keyframes hue{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  .btn-grad:hover{box-shadow:0 14px 46px rgba(255,123,40,.48)}
+  .btn-ghost{border:1px solid var(--line);color:var(--white);background:rgba(255,255,255,.03);backdrop-filter:blur(8px)}
+  .btn-ghost:hover{border-color:var(--c3)}
+  .btn-sm{padding:9px 18px;font-size:14px;border-radius:11px}
+
+  /* ── Hero ──────────────────────────────────────── */
+  .hero{position:relative;padding:104px 0 120px;overflow:hidden}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center}
+  .badge{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line);background:rgba(255,169,59,.06);color:var(--sand);font-size:13px;font-weight:700;padding:8px 16px;border-radius:100px;letter-spacing:.4px;backdrop-filter:blur(6px)}
+  .badge .dot{width:7px;height:7px;border-radius:50%;background:var(--c3);box-shadow:0 0 12px var(--c3);animation:pulse 2s ease infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  h1{font-size:clamp(42px,5.6vw,66px);line-height:1.04;font-weight:800;letter-spacing:-2.5px;margin:24px 0 20px}
+  .hero p{color:var(--muted);font-size:18px;line-height:1.65;max-width:530px}
+  .hero-ctas{display:flex;gap:14px;margin:34px 0 42px;flex-wrap:wrap}
+  .stats{display:flex;border-top:1px solid var(--line);padding-top:26px;flex-wrap:wrap;gap:10px 0}
+  .stat{padding-right:30px;margin-right:30px;border-right:1px solid var(--line)}
+  .stat:last-child{border:0;margin:0;padding:0}
+  .stat b{display:block;font-size:25px;letter-spacing:-.5px}
+  .stat span{font-size:12.5px;color:var(--muted);font-weight:600}
+
+  /* ── 3D stage: coin + phone ────────────────────── */
+  .stage{position:relative;height:560px;perspective:1300px}
+  .coin{position:absolute;left:-30px;top:-24px;width:210px;height:210px;transform-style:preserve-3d;animation:coinspin 9s ease-in-out infinite;z-index:3;filter:drop-shadow(0 30px 50px rgba(255,123,40,.35))}
+  .coin .face{position:absolute;inset:0;backface-visibility:hidden}
+  .coin .face:not(:last-child){filter:brightness(.5)}
+  @keyframes coinspin{0%,100%{transform:rotateY(-26deg) rotateX(7deg) translateY(0)}50%{transform:rotateY(26deg) rotateX(-5deg) translateY(-16px)}}
+  .orb-glow{position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(255,123,40,.32),rgba(244,74,42,.10) 55%,transparent 70%);filter:blur(36px);left:-60px;top:-50px;animation:pulse 5s ease infinite}
+  .phone{position:absolute;right:0;top:26px;width:min(360px,88%);background:linear-gradient(180deg,rgba(23,29,41,.94),rgba(13,17,26,.96));border:1px solid rgba(255,169,59,.28);border-radius:32px;padding:22px;backdrop-filter:blur(14px);
+    box-shadow:0 60px 110px rgba(0,0,0,.6),0 0 90px rgba(255,123,40,.14),inset 0 1px 0 rgba(255,255,255,.07);
+    transform:rotateY(-15deg) rotateX(5deg);animation:phonefloat 7.5s ease-in-out infinite;z-index:2}
+  @keyframes phonefloat{0%,100%{transform:rotateY(-15deg) rotateX(5deg) translateY(0)}50%{transform:rotateY(-10deg) rotateX(3deg) translateY(-14px)}}
+  .phone-head{display:flex;align-items:center;gap:11px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:16px}
+  .phone-head .lg{width:38px;height:38px}
+  .phone-head .ttl{font-weight:800;font-size:15px}
+  .phone-head .sub{font-size:12px;color:var(--c3);font-weight:600}
+  .msg{max-width:88%;padding:11px 14px;border-radius:15px;font-size:13.5px;line-height:1.5;margin-bottom:10px}
+  .msg.user{margin-left:auto;background:linear-gradient(135deg,#8C2A1A,#C94E1D);border-bottom-right-radius:5px}
+  .msg.bot{background:rgba(255,255,255,.045);border:1px solid #2A3342;border-bottom-left-radius:5px}
+  .msg .mono{font-size:12.5px;color:var(--c3)}
+  .kbs{display:flex;gap:7px;margin:2px 0 12px 0;flex-wrap:wrap}
+  .kb{font-size:12px;font-weight:700;color:#FFC98A;background:rgba(255,169,59,.10);border:1px solid rgba(255,169,59,.32);padding:6px 13px;border-radius:9px}
+  .tick{font-size:11px;color:#7A8296;text-align:right;margin:-5px 2px 10px 0}
+  .shadow-ellipse{position:absolute;bottom:-6px;right:8%;width:78%;height:34px;background:radial-gradient(ellipse,rgba(0,0,0,.65),transparent 70%);filter:blur(10px);z-index:1}
+
+  /* ── Marquee ticker ────────────────────────────── */
+  .ticker{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:20px 0;position:relative;z-index:2;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+  .track{display:flex;gap:54px;width:max-content;animation:scroll 30s linear infinite}
+  .track span{display:flex;align-items:center;gap:54px;font-size:14px;font-weight:800;letter-spacing:3px;color:#7A8296;white-space:nowrap;text-transform:uppercase}
+  .track b{color:var(--c3);font-weight:800}
+  @keyframes scroll{to{transform:translateX(-50%)}}
+
+  /* ── Sections ──────────────────────────────────── */
+  section{padding:92px 0;position:relative;z-index:2}
+  .kicker{color:var(--c3);font-weight:800;font-size:13px;letter-spacing:3px;text-transform:uppercase}
+  h2{font-size:clamp(30px,3.8vw,46px);font-weight:800;letter-spacing:-1.6px;margin:12px 0 14px;line-height:1.08}
+  .lead{color:var(--muted);font-size:17px;line-height:1.6;max-width:640px}
+
+  /* ── Bento grid ────────────────────────────────── */
+  .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:48px}
+  .glass{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1px solid rgba(255,169,59,.24);border-radius:22px;padding:28px;position:relative;overflow:hidden;
+    backdrop-filter:blur(10px);transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease;transform-style:preserve-3d}
+  .glass:hover{transform:translateY(-7px);border-color:rgba(255,123,40,.55);box-shadow:0 26px 60px rgba(255,123,40,.10),0 10px 34px rgba(244,74,42,.10)}
+  .glass::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.30),transparent)}
+  .span2{grid-column:span 2}
+  .glass h3{font-size:19px;font-weight:800;letter-spacing:-.3px;margin:16px 0 9px}
+  .glass p{color:var(--muted);font-size:14.5px;line-height:1.62}
+  .ico{width:46px;height:46px;border-radius:13px;background:rgba(255,123,40,.08);border:1px solid rgba(255,123,40,.28);display:flex;align-items:center;justify-content:center;box-shadow:0 0 24px rgba(255,123,40,.12)}
+  .tag{display:inline-block;margin-top:15px;font-size:11.5px;font-weight:800;letter-spacing:1.2px;color:var(--c2);text-transform:uppercase}
+  .quote-chip{display:flex;justify-content:space-between;align-items:center;background:rgba(255,169,59,.06);border:1px solid rgba(255,169,59,.22);border-radius:12px;padding:10px 14px;margin-top:10px;font-size:13px}
+  .quote-chip b{color:var(--c3)}
+
+  /* ── Fee pods ──────────────────────────────────── */
+  .pods{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-top:46px}
+  .pod{border-radius:18px;padding:24px 18px;text-align:center;background:linear-gradient(#101721,#101721) padding-box,var(--grad) border-box;border:1.5px solid transparent;transition:transform .2s}
+  .pod:hover{transform:translateY(-5px)}
+  .pod b{display:block;font-size:26px;letter-spacing:-.5px}
+  .pod span{font-size:12px;color:var(--muted);font-weight:600;display:block;margin-top:6px;line-height:1.4}
+
+  /* ── Security ──────────────────────────────────── */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:48px}
+
+  /* ── Steps ─────────────────────────────────────── */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:48px}
+  .step{position:relative;padding:30px 26px;border:1px solid var(--line);border-radius:20px;background:rgba(16,23,33,.75);backdrop-filter:blur(8px)}
+  .step .num{font-size:15px;font-weight:800;letter-spacing:2px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .step h3{margin:12px 0 8px;font-size:18px;font-weight:800}
+  .step p{color:var(--muted);font-size:14.5px;line-height:1.6}
+  code{background:rgba(255,169,59,.10);color:var(--c3);padding:2px 8px;border-radius:6px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+  .cmds{display:flex;gap:12px;flex-wrap:wrap;margin-top:34px}
+  .cmd{font-family:ui-monospace,Menlo,monospace;font-size:14.5px;font-weight:700;color:var(--c3);border:1px solid #2A3342;background:rgba(16,23,33,.8);padding:11px 20px;border-radius:12px}
+  .cmd small{display:block;color:var(--muted);font-family:ui-sans-serif,system-ui;font-size:12px;font-weight:600;margin-top:3px}
+
+  /* ── Referral banner ───────────────────────────── */
+  .banner{position:relative;overflow:hidden;border-radius:26px;padding:54px 48px;display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap;
+    background:linear-gradient(rgba(16,23,33,.92),rgba(16,23,33,.92)) padding-box,var(--grad) border-box;border:1.5px solid transparent}
+  .banner::after{content:"";position:absolute;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(244,74,42,.20),transparent 65%);right:-100px;top:-120px;filter:blur(20px)}
+  .banner h2{margin:0 0 8px}
+  .banner p{color:var(--muted);max-width:480px;line-height:1.6}
+  .refcode{font-family:ui-monospace,Menlo,monospace;background:rgba(7,11,19,.8);border:1px dashed rgba(255,169,59,.55);color:var(--c3);padding:12px 18px;border-radius:12px;font-size:14px}
+
+  /* ── FAQ ───────────────────────────────────────── */
+  .faq{max-width:820px;margin:44px auto 0}
+  details{border:1px solid var(--line);border-radius:16px;background:rgba(16,23,33,.6);margin-bottom:12px;overflow:hidden;transition:border-color .2s}
+  details[open]{border-color:rgba(255,169,59,.45)}
+  summary{cursor:pointer;list-style:none;padding:20px 24px;font-weight:700;font-size:16px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";font-size:22px;font-weight:400;color:var(--c3);transition:transform .25s}
+  details[open] summary::after{transform:rotate(45deg)}
+  details p{padding:0 24px 20px;color:var(--muted);font-size:14.5px;line-height:1.65}
+
+  /* ── CTA + footer ──────────────────────────────── */
+  .cta{text-align:center;padding:120px 0;position:relative}
+  .cta h2{font-size:clamp(34px,4.8vw,56px)}
+  footer{border-top:1px solid var(--line);padding:46px 0 54px;color:var(--muted);font-size:13.5px;position:relative;z-index:2}
+  .foot{display:flex;justify-content:space-between;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .disc{max-width:540px;line-height:1.6;font-size:12.5px;color:#7A8296;margin-top:14px}
+
+  @media(max-width:960px){
+    .hero-grid,.grid2,.steps{grid-template-columns:1fr}
+    .bento{grid-template-columns:1fr}.span2{grid-column:span 1}
+    .pods{grid-template-columns:repeat(2,1fr)}
+    .stage{height:auto;min-height:600px}
+    .nav-links{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- Aurora -->
+<div class="aurora"><i></i><i></i><i></i></div>
+
+<!-- ═══ NAV ═══ -->
+<nav><div class="wrap nav-in">
+  <a class="brand" href="#top"><span class="lg"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></span>Flash<span class="grad-text">SolanaSwap</span></a>
+  <div class="nav-links">
+    <a href="#features">Features</a><a href="#fees">Fees</a><a href="#security">Security</a><a href="#how">How it works</a><a href="#faq">FAQ</a>
+  </div>
+  <a class="btn btn-grad btn-sm" href="https://t.me/FlashSolanaSwapBot" target="_blank" rel="noopener">Launch Bot</a>
+</div></nav>
+
+<!-- ═══ HERO ═══ -->
+<header class="hero" id="top">
+  <div class="grid-floor"></div>
+  <div class="wrap hero-grid">
+    <div>
+      <span class="badge"><span class="dot"></span>POWERED BY JUPITER AGGREGATION</span>
+      <h1>Swap Solana at<br><span class="grad-text">lightning speed.</span></h1>
+      <p>Flash SolanaSwap is a security-first trading bot that lives inside Telegram. Best-price swaps, limit orders, TP/SL protection and a custodial wallet with bank-grade encryption — no browser, no extensions, no seed-phrase stress.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad" href="https://t.me/FlashSolanaSwapBot" target="_blank" rel="noopener">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.6c.2-1.2-.9-2.2-2-1.7L2.7 9.6c-1.2.5-1.1 2.2.1 2.6l4.4 1.4 1.7 5.3c.4 1.2 2 1.5 2.8.5l2.4-2.9 4.5 3.3c1 .7 2.4.1 2.6-1.1L21.9 4.6zM8.4 12.9l9.1-5.7c.3-.2.6.2.4.4l-7.5 7-.3 2.7-1.7-4.4z"/></svg>
+          Open in Telegram</a>
+        <a class="btn btn-ghost" href="#features">Explore features</a>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>0.5%</b><span>flat swap fee</span></div>
+        <div class="stat"><b>15s</b><span>locked quotes</span></div>
+        <div class="stat"><b>1%</b><span>default slippage cap</span></div>
+        <div class="stat"><b>24/7</b><span>order engines</span></div>
+      </div>
+    </div>
+
+    <!-- 3D stage -->
+    <div class="stage">
+      <div class="orb-glow"></div>
+      <div class="coin">
+        <div class="face" style="transform:translateZ(-6px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(-5px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(-4px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(-3px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(-2px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(-1px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(0px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(1px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(2px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(3px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(4px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(5px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+        <div class="face" style="transform:translateZ(6px)"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></div>
+      </div>
+      <div class="phone">
+        <div class="phone-head">
+          <span class="lg"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></span>
+          <div><div class="ttl">Flash SolanaSwap</div><div class="sub">● online</div></div>
+        </div>
+        <div class="msg user">/swap</div>
+        <div class="tick">14:02 ✓✓</div>
+        <div class="msg bot">🔄 <b>Swap</b> — select the token you're selling:</div>
+        <div class="kbs"><span class="kb">SOL</span><span class="kb">USDC</span><span class="kb">BONK</span><span class="kb">JUP</span></div>
+        <div class="msg bot">🔄 <b>SOL → USDC</b><br>You sell: <b>1.5 SOL</b><br>You get: <b class="mono">312.44 USDC</b><br><span style="color:#8B93A7;font-size:12.5px">Rate 208.29 · Fee 0.5% · Slippage 1% · quote locked 15s</span></div>
+        <div class="kbs"><span class="kb">✅ Confirm</span><span class="kb">❌ Cancel</span></div>
+        <div class="msg bot">✅ <b>Swap confirmed!</b><br><b class="mono">312.44 USDC</b> · <span style="color:#FFC98A">View in Solscan ↗</span></div>
+      </div>
+      <div class="shadow-ellipse"></div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ TICKER ═══ -->
+<div class="ticker"><div class="track">
+  <span><b>Jupiter</b> aggregation ✦ <b>Solana</b> mainnet ✦ <b>Helius</b> RPC ✦ <b>grammY</b> ✦ <b>Supabase</b> ✦ <b>AES-256-GCM</b> ✦ <b>argon2id</b> ✦ <b>0.5%</b> flat fee ✦ <b>25%</b> referral share ✦ <b>15s</b> quote lock ✦</span>
+  <span><b>Jupiter</b> aggregation ✦ <b>Solana</b> mainnet ✦ <b>Helius</b> RPC ✦ <b>grammY</b> ✦ <b>Supabase</b> ✦ <b>AES-256-GCM</b> ✦ <b>argon2id</b> ✦ <b>0.5%</b> flat fee ✦ <b>25%</b> referral share ✦ <b>15s</b> quote lock ✦</span>
+</div></div>
+
+<!-- ═══ BENTO FEATURES ═══ -->
+<section id="features"><div class="wrap">
+  <span class="kicker">Everything in one chat</span>
+  <h2>A full trading desk,<br>compressed into <span class="grad-text">Telegram.</span></h2>
+  <p class="lead">Every feature is engineered against real mainnet failure modes — idempotent money movement, crash-safe engines and quotes that expire before the market can move against you.</p>
+  <div class="bento">
+    <div class="glass span2">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF7B28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg></div>
+      <h3>Lightning swaps</h3>
+      <p>Routing through Jupiter scans every Solana DEX for the best execution price. Quotes lock for 15 seconds, the fee is a flat 0.5%, and slippage is hard-capped at 5% — the market never gets to move against you mid-tap.</p>
+      <div class="quote-chip"><span>1.5 SOL → <b>312.44 USDC</b></span><span style="color:#8B93A7">rate 208.29 · fee 0.5%</span></div>
+      <div class="quote-chip"><span>800 USDC → <b>5.921 SOL</b></span><span style="color:#8B93A7">slippage 1% · TTL 15s</span></div>
+      <span class="tag">Jupiter aggregated</span>
+    </div>
+    <div class="glass">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF7B28" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg></div>
+      <h3>Limit orders</h3>
+      <p>Name your rate and walk away. The engine polls the market every 15 seconds and fills exactly once — orders stay open for 7 days.</p>
+      <span class="tag">Set &amp; forget</span>
+    </div>
+    <div class="glass">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF7B28" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+      <h3>Take-profit / stop-loss</h3>
+      <p>Attach USD trigger prices to any token. TP/SL fires automatically — gains locked, losses cut, even while you sleep.</p>
+      <span class="tag">24/7 protection</span>
+    </div>
+    <div class="glass span2">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF7B28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M16 8V6a4 4 0 0 0-8 0v2"/></svg></div>
+      <h3>Custodial wallet, armored</h3>
+      <p>Generated the moment you hit /start. Keys are sealed with AES-256-GCM envelope encryption, gated behind your argon2id PIN, and only ever exist in plaintext for the milliseconds a signature takes. Deposit, withdraw, or export with a self-destructing reveal.</p>
+      <span class="tag">AES-256-GCM · argon2id</span>
+    </div>
+    <div class="glass">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF7B28" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v8H4v-8M12 2v13M12 15l-4-4M12 15l4-4"/><rect x="2" y="2" width="20" height="6" rx="1"/></svg></div>
+      <h3>Referral rewards</h3>
+      <p>Share your link, earn 25% of the platform fee on every trade your friends make — paid in SOL.</p>
+      <span class="tag">25% fee share</span>
+    </div>
+    <div class="glass">
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF7B28" stroke-width="2" stroke-linecap="round"><path d="M3 17l5-6 4 4 6-8 3 4"/><path d="M3 21h18"/></svg></div>
+      <h3>Portfolio &amp; prices</h3>
+      <p>Live balances, USD valuations and token prices in one tap. Speaks English and Russian, with per-wallet slippage settings.</p>
+      <span class="tag">EN / RU</span>
+    </div>
+  </div>
+</div></section>
+
+<!-- ═══ FEE PODS ═══ -->
+<section id="fees" style="padding-top:20px"><div class="wrap">
+  <span class="kicker">Radical transparency</span>
+  <h2>Every number, <span class="grad-text">on the table.</span></h2>
+  <div class="pods">
+    <div class="pod"><b class="grad-text">0.5%</b><span>flat platform fee per swap</span></div>
+    <div class="pod"><b class="grad-text">15s</b><span>quote lock — then it expires</span></div>
+    <div class="pod"><b class="grad-text">1%</b><span>default slippage · 5% hard cap</span></div>
+    <div class="pod"><b class="grad-text">0.001</b><span>SOL minimum swap size</span></div>
+    <div class="pod"><b class="grad-text">25%</b><span>of fees shared to referrers</span></div>
+  </div>
+</div></section>
+
+<!-- ═══ SECURITY ═══ -->
+<section id="security"><div class="wrap">
+  <span class="kicker">Security-first by design</span>
+  <h2>Your keys. <span class="grad-text">Armored.</span></h2>
+  <p class="lead">The wallet stack is built like infrastructure, not a demo: envelope encryption, scoped sessions and a tamper-evident audit trail on every lamport that moves.</p>
+  <div class="grid2">
+    <div class="glass"><h3>🔐 Envelope encryption at rest</h3><p>Private keys are sealed with AES-256-GCM under a rotating master key. They exist in plaintext only in memory, only for the milliseconds a signature takes — then wiped.</p></div>
+    <div class="glass"><h3>📌 PIN-gated sessions</h3><p>Swaps, withdrawals and exports require your argon2id-hashed PIN. Five wrong attempts lock the wallet for 15 minutes; unlocked sessions are scoped and expire just as fast.</p></div>
+    <div class="glass"><h3>⏳ Self-destructing key export</h3><p>Need your key out? The export message hides behind a spoiler and auto-deletes after 30 seconds — with the event written to the audit log.</p></div>
+    <div class="glass"><h3>🧾 Tamper-evident audit chain</h3><p>Every balance change is idempotent, compare-and-swap transitioned and hash-chained into an append-only audit log. Money can't move twice, and history can't be rewritten.</p></div>
+  </div>
+</div></section>
+
+<!-- ═══ HOW IT WORKS ═══ -->
+<section id="how"><div class="wrap">
+  <span class="kicker">Up and running in 60 seconds</span>
+  <h2>Three steps to your <span class="grad-text">first swap.</span></h2>
+  <div class="steps">
+    <div class="step"><span class="num">01</span><h3>Open the bot</h3><p>Tap <b>Open in Telegram</b> and hit <code>/start</code>. Your custodial wallet is generated instantly — address ready for deposits.</p></div>
+    <div class="step"><span class="num">02</span><h3>Set your PIN &amp; fund</h3><p>Choose a PIN to armor the wallet, then send SOL or SPL tokens to your address. Balance shows up automatically.</p></div>
+    <div class="step"><span class="num">03</span><h3>Trade</h3><p><code>/swap</code> for instant trades, <code>/limit</code> for target rates, <code>/tpsl</code> for protection. Confirm in one tap — done.</p></div>
+  </div>
+  <div class="cmds">
+    <div class="cmd">/start<small>wallet &amp; main menu</small></div>
+    <div class="cmd">/swap<small>instant token swaps</small></div>
+    <div class="cmd">/limit<small>limit orders</small></div>
+    <div class="cmd">/tpsl<small>take-profit / stop-loss</small></div>
+    <div class="cmd">/help<small>all commands</small></div>
+  </div>
+</div></section>
+
+<!-- ═══ REFERRAL ═══ -->
+<section id="referral" style="padding-top:20px"><div class="wrap">
+  <div class="banner">
+    <div>
+      <span class="kicker">Referral program</span>
+      <h2>Invite friends.<br><span class="grad-text">Earn 25% of fees — in SOL.</span></h2>
+      <p>Every account gets a personal referral link. You collect a quarter of the platform fee on every swap your referrals make, accrued automatically and paid out in SOL.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;align-items:flex-start;position:relative;z-index:2">
+      <span class="refcode">t.me/FlashSolanaSwapBot?start=ref_YOURCODE</span>
+      <a class="btn btn-grad" href="https://t.me/FlashSolanaSwapBot" target="_blank" rel="noopener">Get my referral link</a>
+    </div>
+  </div>
+</div></section>
+
+<!-- ═══ FAQ ═══ -->
+<section id="faq"><div class="wrap">
+  <div style="text-align:center"><span class="kicker">Questions</span>
+  <h2>Asked <span class="grad-text">often.</span></h2></div>
+  <div class="faq">
+    <details open><summary>Is Flash SolanaSwap custodial?</summary><p>Yes — the bot holds a wallet on your behalf so trades execute instantly from chat. Keys are encrypted at rest with AES-256-GCM under a rotating master key, gated by your argon2id PIN, and you can export your private key at any time (the reveal self-destructs after 30 seconds). Treat it like a hot wallet: keep trading balances, not your life savings.</p></details>
+    <details><summary>What does a swap cost?</summary><p>A flat 0.5% platform fee per swap, plus the usual Solana network fee. Quotes are locked for 15 seconds and show the exact receive amount before you confirm — no hidden spreads.</p></details>
+    <details><summary>Which tokens can I trade?</summary><p>Any token routable through Jupiter on Solana mainnet — SOL, USDC, BONK, JUP and the long tail of SPL tokens. The bot quotes the best route across all major Solana DEXs.</p></details>
+    <details><summary>How do limit orders and TP/SL work?</summary><p>You set a target rate (limit) or USD trigger price (TP/SL). Background engines poll the market every 15 seconds and fill exactly once — limit orders live for 7 days, TP/SL watches around the clock.</p></details>
+    <details><summary>How does the referral program pay?</summary><p>Share your personal link (<span class="mono" style="color:#FFA93B">t.me/FlashSolanaSwapBot?start=ref_CODE</span>). You earn 25% of the platform fee on every swap your referrals make, accrued automatically and paid out in SOL once you cross 0.01 SOL.</p></details>
+  </div>
+</div></section>
+
+<!-- ═══ CTA ═══ -->
+<section class="cta"><div class="wrap">
+  <h2>Ready to move at <span class="grad-text">flash speed?</span></h2>
+  <p class="lead" style="margin:16px auto 36px">Your wallet is one tap away. No sign-up, no email — just Telegram.</p>
+  <a class="btn btn-grad" style="font-size:17px;padding:17px 38px" href="https://t.me/FlashSolanaSwapBot" target="_blank" rel="noopener">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M21.9 4.6c.2-1.2-.9-2.2-2-1.7L2.7 9.6c-1.2.5-1.1 2.2.1 2.6l4.4 1.4 1.7 5.3c.4 1.2 2 1.5 2.8.5l2.4-2.9 4.5 3.3c1 .7 2.4.1 2.6-1.1L21.9 4.6zM8.4 12.9l9.1-5.7c.3-.2.6.2.4.4l-7.5 7-.3 2.7-1.7-4.4z"/></svg>
+    Launch Flash SolanaSwap</a>
+</div></section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer><div class="wrap foot">
+  <div>
+    <div class="brand" style="font-size:16px"><span class="lg" style="width:28px;height:28px;display:inline-block"><svg viewBox="0 0 512 512" style="width:100%;height:100%;display:block"><defs><linearGradient id="gah" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#F44A2A"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#FFA93B"/></linearGradient><linearGradient id="gbh" gradientUnits="userSpaceOnUse" x1="60" y1="40" x2="452" y2="472"><stop offset="0" stop-color="#FFA93B"/><stop offset=".5" stop-color="#FF7B28"/><stop offset="1" stop-color="#F44A2A"/></linearGradient>
+<clipPath id="hxh"><path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z"/></clipPath>
+<clipPath id="rgh"><polygon points="308.2,40.0 306.0,45.0 303.8,50.0 301.6,55.0 299.4,60.0 297.2,65.0 295.0,70.0 292.8,75.0 290.6,80.0 288.4,85.0 286.2,90.0 284.0,95.0 281.8,100.0 279.6,105.0 277.3,110.0 275.1,115.0 272.9,120.0 270.7,125.0 268.5,130.0 266.3,135.0 264.1,140.0 261.9,145.0 259.7,150.0 257.5,155.0 255.3,160.0 253.1,165.0 250.9,170.0 248.7,175.0 246.5,180.0 244.2,185.0 242.0,190.0 239.8,195.0 237.6,200.0 235.4,205.0 233.2,210.0 286.4,215.0 283.2,220.0 280.1,225.0 276.9,230.0 273.7,235.0 270.5,240.0 267.3,245.0 264.2,250.0 261.0,255.0 257.8,260.0 254.6,265.0 251.4,270.0 248.2,275.0 245.1,280.0 241.9,285.0 238.7,290.0 235.5,295.0 284.3,300.0 282.3,305.0 280.3,310.0 278.3,315.0 276.3,320.0 274.3,325.0 272.3,330.0 270.3,335.0 268.3,340.0 266.4,345.0 264.4,350.0 262.4,355.0 260.4,360.0 258.4,365.0 256.4,370.0 254.4,375.0 252.4,380.0 250.4,385.0 248.4,390.0 246.4,395.0 244.4,400.0 242.4,405.0 240.4,410.0 238.4,415.0 236.4,420.0 234.4,425.0 232.4,430.0 230.4,435.0 228.4,440.0 226.4,445.0 224.4,450.0 222.4,455.0 220.4,460.0 218.4,465.0 216.4,470.0 214.4,475.0 214.4,480.0 214.4,485.0 214.4,490.0 214.4,495.0 214.4,500.0 214.4,505.0 214.4,510.0 214.4,515.0 214.4,520.0 214.4,525.0 214.4,530.0 214.4,535.0 214.4,540.0 214.4,545.0 214.4,550.0 214.4,555.0 612,612 612,-100"/></clipPath>
+<mask id="vdh" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512"><rect width="512" height="512" fill="#fff"/><path d="M310 36 L140 300 L244 300 L214 476 L380 212 L268 212 Z" fill="#000"/></mask>
+</defs>
+<g mask="url(#vdh)"><g clip-path="url(#hxh)">
+<rect width="512" height="512" fill="url(#gah)"/>
+<g clip-path="url(#rgh)"><rect width="512" height="512" fill="url(#gbh)"/></g>
+</g></g>
+<path d="M469.6 238.0 Q480.0 256.0 469.6 274.0 L378.4 432.0 Q368.0 450.0 347.2 450.0 L164.8 450.0 Q144.0 450.0 133.6 432.0 L42.4 274.0 Q32.0 256.0 42.4 238.0 L133.6 80.0 Q144.0 62.0 164.8 62.0 L347.2 62.0 Q368.0 62.0 378.4 80.0 Z" fill="none" stroke="url(#gah)" stroke-width="3" opacity=".55"/></svg></span>Flash<span class="grad-text">SolanaSwap</span></div>
+    <p class="disc">Flash SolanaSwap Bot is a trading tool that operates a custodial wallet on your behalf. Cryptocurrency trading involves substantial risk of loss. Nothing on this site is financial, investment or trading advice. Swap fees (0.5%) and Solana network fees apply. Never trade more than you can afford to lose.</p>
+  </div>
+  <div style="text-align:right">
+    <div style="display:flex;gap:20px;justify-content:flex-end;font-weight:600">
+      <a href="#features">Features</a><a href="#security">Security</a><a href="https://t.me/FlashSolanaSwapBot" target="_blank" rel="noopener">Telegram ↗</a>
+    </div>
+    <p style="margin-top:14px">© 2026 Flash SolanaSwap Bot · Built on Solana · Powered by Jupiter</p>
+  </div>
+</div></footer>
+
+</body>
+</html>
