@@ -126,13 +126,7 @@ const STEPS = [
   },
 ];
 
-const COMMANDS = [
-  { cmd: "/start", desc: "wallet & main menu" },
-  { cmd: "/swap", desc: "instant token swaps" },
-  { cmd: "/limit", desc: "limit orders" },
-  { cmd: "/tpsl", desc: "take-profit / stop-loss" },
-  { cmd: "/help", desc: "all commands" },
-];
+// Commands list removed per request
 
 export function HowItWorks() {
   return (
@@ -155,14 +149,7 @@ export function HowItWorks() {
             </div>
           ))}
         </div>
-        <div className="mt-9 flex flex-wrap gap-3">
-          {COMMANDS.map((c) => (
-            <div key={c.cmd} className="rounded-xl border border-[#2A3342] bg-panel/80 px-5 py-3">
-              <span className="font-mono text-sm font-bold text-amber">{c.cmd}</span>
-              <small className="mt-0.5 block text-xs font-semibold text-muted">{c.desc}</small>
-            </div>
-          ))}
-        </div>
+        {/* Commands UI removed */}
       </div>
     </section>
   );
