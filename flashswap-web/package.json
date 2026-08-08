@@ -5,8 +5,12 @@
   "description": "Marketing website for Flash SolanaSwap Bot — Solana swaps inside Telegram",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "clean": "rm -rf .next out tsconfig.tsbuildinfo",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run clean && npm run typecheck && next build",
+    "build:static": "npm run clean && npm run typecheck && NEXT_PUBLIC_STATIC=1 next build",
+    "start": "next start",
+    "preview": "npx serve out"
   },
   "dependencies": {
     "next": "^15.3.0",

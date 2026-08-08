@@ -1,11 +1,23 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Inter, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import { SITE } from "@/lib/site";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" });
+// Self-hosted variable fonts (latin subset) so builds never depend on the
+// network (Google Fonts is fetched at build time by default, which breaks
+// offline/CI builds). Files live in app/fonts/.
+const inter = localFont({
+  src: "./fonts/inter-latin.woff2",
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const spaceGrotesk = localFont({
+  src: "./fonts/space-grotesk-latin.woff2",
+  display: "swap",
+  variable: "--font-space-grotesk",
+});
 
 export const metadata: Metadata = {
   // ← replace with your production domain once deployed

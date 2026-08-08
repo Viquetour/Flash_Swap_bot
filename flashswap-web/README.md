@@ -11,11 +11,32 @@ npm install
 npm run dev        # → http://localhost:3000
 ```
 
-Build for production:
+## Build
 
 ```bash
-npm run build && npm start
+npm run build      # type-check + production build (server-rendered, .next/)
+npm start          # serve the production build
 ```
+
+The build pipeline runs three steps in order:
+
+1. **`npm run clean`** — removes stale `.next/`, `out/` and `tsconfig.tsbuildinfo`
+2. **`npm run typecheck`** — strict TypeScript check (`tsc --noEmit`)
+3. **`next build`** — production build
+
+### Static export
+
+For a fully static site (no Node server) that can be hosted on Netlify,
+Cloudflare Pages, GitHub Pages, or any static host:
+
+```bash
+npm run build:static   # → outputs to out/
+npm run preview        # → serve out/ locally to verify
+```
+
+`build:static` sets the `NEXT_PUBLIC_STATIC=1` env var which `next.config.ts`
+reads to enable `output: "export"` — so you can switch between server-rendered
+and static builds without touching any config files.
 
 ## ⚙️ One required edit before launch
 
@@ -32,16 +53,20 @@ Also update `metadataBase` in `app/layout.tsx` once you know your domain.
 
 ## Deploy
 
-- **Vercel** (recommended): import the repo → deploy. No config needed.
-- **Static export**: uncomment `output: "export"` in `next.config.ts`, then
-  `npm run build` — the site is fully static and lands in `out/`, ready for
-  Netlify / Cloudflare Pages / GitHub Pages / any static host.
+- **Netlify**: a `netlify.toml` at the repo root wires everything up
+  automatically (base dir `flashswap-web/`, build command `npm run build:static`,
+  publish dir `out/`). Import the repo → Deploy. No manual config needed.
+- **Vercel**: import the repo → deploy. No config needed.
+- **Any static host**: run `npm run build:static` — the site is fully static
+  and lands in `out/`, ready for Netlify / Cloudflare Pages / GitHub Pages / any
+  static host.
 
 ## Structure
 
 ```
 app/
-  layout.tsx        metadata (OG/Twitter), fonts (Inter + Space Grotesk)
+  layout.tsx        metadata (OG/Twitter), self-hosted fonts
+  fonts/            Inter + Space Grotesk variable woff2 (self-hosted)
   page.tsx          section assembly
   globals.css       brand tokens + utilities (Tailwind v4 @theme)
   icon.svg          favicon (auto-served by Next)

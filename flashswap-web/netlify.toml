@@ -1,0 +1,10 @@
+# Netlify deployment config for the Flash SolanaSwap marketing site.
+# The Next.js app lives in flashswap-web/ and builds to a fully static site.
+
+[build]
+  base = "flashswap-web"
+  command = "npm run build:static"
+  publish = "out"
+
+[build.environment]
+  NEXT_PUBLIC_STATIC = "1"
